@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { PodcastEntry } from "../types/podcast";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "./AuthContext";
 
 interface PodcastContextType {
   podcasts: PodcastEntry[];
@@ -16,14 +17,20 @@ const PodcastContext = createContext<PodcastContextType | undefined>(undefined);
 export const PodcastProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { user } = useAuth();
   const [podcasts, setPodcasts] = useState<PodcastEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch podcasts from Supabase on mount
+  // Fetch podcasts when user logs in/out
   useEffect(() => {
-    fetchPodcasts();
-  }, []);
+    if (user) {
+      fetchPodcasts();
+    } else {
+      setPodcasts([]);
+      setIsLoading(false);
+    }
+  }, [user]);
 
   const fetchPodcasts = async () => {
     try {
@@ -33,6 +40,7 @@ export const PodcastProvider: React.FC<{ children: React.ReactNode }> = ({
       const { data, error: fetchError } = await supabase
         .from("podcasts")
         .select("*")
+        .eq("user_id", user?.id)
         .order("created_at", { ascending: false });
 
       if (fetchError) throw fetchError;
@@ -68,6 +76,10 @@ export const PodcastProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       setError(null);
 
+      if (!user) {
+        throw new Error("You must be logged in to add a podcast");
+      }
+
       const { error: insertError } = await supabase.from("podcasts").insert([
         {
           id: podcast.id,
@@ -83,6 +95,7 @@ export const PodcastProvider: React.FC<{ children: React.ReactNode }> = ({
           tags: podcast.tags,
           your_notes: podcast.yourNotes || null,
           summary: podcast.summary,
+          user_id: user.id,
         },
       ]);
 
@@ -105,7 +118,8 @@ export const PodcastProvider: React.FC<{ children: React.ReactNode }> = ({
       const { error: deleteError } = await supabase
         .from("podcasts")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("user_id", user?.id);
 
       if (deleteError) throw deleteError;
 
@@ -140,7 +154,8 @@ export const PodcastProvider: React.FC<{ children: React.ReactNode }> = ({
       const { error: updateError } = await supabase
         .from("podcasts")
         .update(updateData)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("user_id", user?.id);
 
       if (updateError) throw updateError;
 

@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { usePodcasts } from "../../context/PodcastContext";
 import { PodcastCard } from "./PodcastCard";
-import { Sidebar } from "../Layout/Sidebar";
 
 export const PodcastList: React.FC = () => {
   const { podcasts } = usePodcasts();
@@ -14,9 +13,7 @@ export const PodcastList: React.FC = () => {
 
   return (
     <div className="flex gap-6">
-      {/* Sidebar */}
-      <Sidebar onTagSelect={setSelectedTag} selectedTag={selectedTag} />
-
+     
       {/* Main Content */}
       <main className="flex-1 py-6">
         <div className="mb-6">

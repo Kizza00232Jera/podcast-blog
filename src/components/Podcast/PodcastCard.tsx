@@ -1,11 +1,15 @@
 import React from "react";
 import { PodcastEntry } from "../../types/podcast";
+import { usePodcasts } from "../../context/PodcastContext";
 
 interface PodcastCardProps {
   podcast: PodcastEntry;
 }
 
 export const PodcastCard: React.FC<PodcastCardProps> = ({ podcast }) => {
+  const { deletePodcast } = usePodcasts();
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+
   const formattedDate = new Date(podcast.createdAt).toLocaleDateString(
     "en-US",
     {
@@ -14,6 +18,11 @@ export const PodcastCard: React.FC<PodcastCardProps> = ({ podcast }) => {
       day: "numeric",
     }
   );
+
+  const handleDelete = () => {
+    deletePodcast(podcast.id);
+    setShowDeleteConfirm(false);
+  };
 
   return (
     <article className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition">
@@ -120,9 +129,34 @@ export const PodcastCard: React.FC<PodcastCardProps> = ({ podcast }) => {
         >
           View on YouTube →
         </a>
-        <button className="text-sm text-gray-500 hover:text-gray-700">
-          Read Full Summary
-        </button>
+        <div className="flex gap-2">
+          <button className="text-sm text-gray-500 hover:text-gray-700">
+            Read Full
+          </button>
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="text-sm text-red-600 hover:text-red-800 font-semibold"
+            >
+              Delete
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={handleDelete}
+                className="text-sm px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="text-sm px-2 py-1 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </article>
   );

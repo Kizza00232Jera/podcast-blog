@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { usePodcasts } from "../../context/PodcastContext";
 
 interface SidebarProps {

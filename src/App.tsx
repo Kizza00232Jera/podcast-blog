@@ -1,6 +1,7 @@
 import { Header } from "./components/Layout/Header";
 import { PodcastList } from "./components/Podcast/PodcastList";
 import { PodcastProvider } from "./context/PodcastContext";
+import "./styles/globals.css";
 
 function App() {
   return (

@@ -1,59 +1,50 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 
 interface AuthContextType {
   user: User | null;
-  isLoading: boolean;
+  loading: boolean;
+  error: string | null;
   signUp: (email: string, password: string) => Promise<void>;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   signInWithGitHub: () => Promise<void>;
   signOut: () => Promise<void>;
-  error: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if user is already logged in on mount
+  // Check if user is logged in on mount
   useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        setUser(session?.user || null);
+      } catch (err) {
+        console.error("Error checking user:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     checkUser();
-    subscribeToAuthChanges();
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription?.unsubscribe();
   }, []);
-
-  const checkUser = async () => {
-    try {
-      setIsLoading(true);
-      const { data, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError) throw sessionError;
-
-      setUser(data.session?.user ?? null);
-    } catch (err) {
-      console.error("Error checking user:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const subscribeToAuthChanges = () => {
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    setUser(session?.user ?? null);
-  });
-
-  return () => {
-    subscription?.unsubscribe();
-  };
-};
-
 
   const signUp = async (email: string, password: string) => {
     try {
@@ -62,10 +53,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         email,
         password,
       });
-
       if (signUpError) throw signUpError;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to sign up";
+      const message = err instanceof Error ? err.message : "Sign up failed";
       setError(message);
       throw err;
     }
@@ -78,10 +68,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         email,
         password,
       });
-
       if (signInError) throw signInError;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to sign in";
+      const message = err instanceof Error ? err.message : "Sign in failed";
       setError(message);
       throw err;
     }
@@ -96,10 +85,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           redirectTo: `${window.location.origin}/`,
         },
       });
-
       if (signInError) throw signInError;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to sign in with GitHub";
+      const message = err instanceof Error ? err.message : "GitHub sign in failed";
       setError(message);
       throw err;
     }
@@ -109,32 +97,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       setError(null);
       const { error: signOutError } = await supabase.auth.signOut();
-
       if (signOutError) throw signOutError;
-
       setUser(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to sign out";
+      const message = err instanceof Error ? err.message : "Sign out failed";
       setError(message);
       throw err;
     }
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        signUp,
-        signInWithPassword,
-        signInWithGitHub,
-        signOut,
-        error,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  const value: AuthContextType = {
+    user,
+    loading,
+    error,
+    signUp,
+    signInWithPassword,
+    signInWithGitHub,
+    signOut,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

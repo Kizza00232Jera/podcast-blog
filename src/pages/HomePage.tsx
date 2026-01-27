@@ -6,8 +6,8 @@ import { Link } from "react-router-dom";
 interface Summary {
   main_topic: string;
   content: string;
-  key_takeaways: string[];
-  actionable_advice: string[];
+  key_takeaways?: string[];
+  actionable_advice?: string[];
   resources_mentioned?: string[];
 }
 
@@ -19,12 +19,13 @@ interface PodcastPost {
   source_link: string;
   tags: string[];
   summary: Summary;
-  guest_name?: string;
+  thumbnail_url?: string;
   duration_minutes?: number;
   rating?: number;
   user_id: string;
   created_at: string;
 }
+
 
 export const HomePage: React.FC = () => {
   const { user } = useAuth();
@@ -47,13 +48,13 @@ export const HomePage: React.FC = () => {
   }, [posts, searchQuery, selectedCreators, selectedTags]);
 
   const fetchPosts = async () => {
-    try {
-      const { data, error: fetchError } = await supabase
-        .from("podcast_posts")
-        .select("*")
-        .order("created_at", { ascending: false });
+  try {
+    const { data, error: fetchError } = await supabase
+      .from('podcast_posts')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
+    if (fetchError) throw fetchError;
       
       const postsData = data || [];
       setPosts(postsData);

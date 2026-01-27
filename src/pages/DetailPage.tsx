@@ -5,8 +5,8 @@ import { supabase } from "../lib/supabase";
 interface Summary {
   main_topic: string;
   content: string;
-  key_takeaways: string[];
-  actionable_advice: string[];
+  key_takeaways?: string[];
+  actionable_advice?: string[];
   resources_mentioned?: string[];
 }
 
@@ -18,9 +18,95 @@ interface PodcastPost {
   source_link: string;
   tags: string[];
   summary: Summary;
+  thumbnail_url?: string;
   duration_minutes?: number;
   rating?: number;
+  user_id: string;
+  created_at: string;
 }
+
+
+// Helper function to extract YouTube thumbnail from URL
+const getYouTubeThumbnail = (youtubeUrl: string): string | null => {
+  try {
+    const videoId = youtubeUrl.match(
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/,
+    )?.[1];
+    if (videoId) {
+      return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+    }
+  } catch (e) {
+    console.error("Error extracting YouTube thumbnail:", e);
+  }
+  return null;
+};
+
+// Helper function to render rating stars
+const renderStars = (rating: number): string => {
+  const fullStars = Math.floor(rating);
+  const hasHalfStar = rating % 1 !== 0;
+  let stars = "★".repeat(fullStars);
+  if (hasHalfStar) stars += "½";
+  stars += "☆".repeat(5 - Math.ceil(rating));
+  return stars;
+};
+
+// Parse content into sections (chapters, quotes, paragraphs)
+interface ContentSection {
+  type: "heading" | "paragraph" | "quote";
+  content?: string;
+  quoteText?: string;
+  author?: string;
+}
+
+const parseContent = (text: string): ContentSection[] => {
+  if (!text) return [];
+
+  const sections: ContentSection[] = [];
+  const parts = text.split("\n\n");
+
+  parts.forEach((part) => {
+    const trimmed = part.trim();
+    if (!trimmed) return;
+
+    // Check for chapter headers (## Chapter Title)
+    if (trimmed.startsWith("##")) {
+      sections.push({
+        type: "heading",
+        content: trimmed.replace(/^##\s*/, "").trim(),
+      });
+    }
+    // Check for quotes ("Quote text" — Author Name)
+    else if (
+      trimmed.includes(" — ") &&
+      trimmed.startsWith('"') &&
+      trimmed.includes('"')
+    ) {
+      const quoteMatch = trimmed.match(/"([^"]+)"\s*—\s*(.+)$/);
+      if (quoteMatch) {
+        sections.push({
+          type: "quote",
+          quoteText: quoteMatch[1],
+          author: quoteMatch[2].trim(),
+        });
+      } else {
+        sections.push({
+          type: "paragraph",
+          content: trimmed,
+        });
+      }
+    }
+    // Regular paragraph
+    else {
+      sections.push({
+        type: "paragraph",
+        content: trimmed,
+      });
+    }
+  });
+
+  return sections;
+};
 
 export const DetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -38,8 +124,8 @@ export const DetailPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from("podcast_posts")
-        .select()
-        .eq("id", id)
+        .select("*")
+        .eq("id", id as string)
         .single();
 
       if (error) throw error;
@@ -57,184 +143,241 @@ export const DetailPage: React.FC = () => {
       const { error } = await supabase
         .from("podcast_posts")
         .delete()
-        .eq("id", id);
+        .eq("id", id as string);
 
       if (error) throw error;
       navigate("/");
     } catch (err) {
       console.error("Delete error:", err);
-      setDeleting(false);
-      setShowDeleteConfirm(false);
     }
+    setDeleting(false);
+    setShowDeleteConfirm(false);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
-        <p className="text-xl text-gray-600">Loading...</p>
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <p className="text-lg text-gray-600">Loading...</p>
       </div>
     );
   }
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-        <main className="max-w-4xl mx-auto px-4 py-12">
+      <main className="min-h-screen bg-white">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <button
             onClick={() => navigate(-1)}
-            className="mb-6 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+            className="mb-8 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
           >
             ← Back
           </button>
-          <p className="text-xl text-gray-600">Podcast not found</p>
-        </main>
-      </div>
+          <p className="text-lg text-gray-600">Podcast not found</p>
+        </div>
+      </main>
     );
   }
 
+  // Get thumbnail URL (from field or extracted from YouTube URL)
+  const thumbnailUrl =
+    post.thumbnail_url || getYouTubeThumbnail(post.source_link);
+
+  // Parse content for chapters and quotes
+  const contentSections = parseContent(post.summary.content);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-      <main className="max-w-4xl mx-auto px-4 py-12">
+    <div className="min-h-screen bg-white">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
         {/* Back Button */}
         <button
           onClick={() => navigate(-1)}
-          className="mb-8 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+          className="mb-8 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors inline-block"
         >
-          ← Back to Home
+          ← Back
         </button>
 
-        {/* Content */}
-        <article className="bg-white/70 backdrop-blur-xl rounded-2xl p-8 border border-white/50">
-          {/* Title & Meta */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+        {/* Article Content */}
+        <article className="max-w-2xl mx-auto">
+          {/* Title */}
+          <header className="mb-8 sm:mb-12">
+            <h1 className="text-4xl sm:text-5xl font-serif font-bold text-gray-900 leading-tight mb-6">
               {post.title}
             </h1>
 
             {/* Meta Information */}
-            <div className="grid md:grid-cols-3 gap-6 mb-8 pb-8 border-b border-gray-200">
-              {/* Podcast Name */}
-              <div>
-                <p className="text-sm text-gray-600 mb-1">
-                  <span className="font-semibold">Podcast</span>
-                </p>
-                <p className="text-lg font-semibold text-gray-900">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-sm text-gray-600 border-b border-gray-200 pb-6">
+              <div className="flex flex-col gap-2">
+                <p>
+                  <span className="font-medium text-gray-900">Podcast:</span>{" "}
                   {post.podcast_name}
                 </p>
-              </div>
-
-              {/* Creator */}
-              <div>
-                <p className="text-sm text-gray-600 mb-1">
-                  <span className="font-semibold">Creator</span>
-                </p>
-                <p className="text-lg font-semibold text-gray-900">
+                <p>
+                  <span className="font-medium text-gray-900">Creator:</span>{" "}
                   {post.creator}
                 </p>
               </div>
-
-              {/* Duration & Rating */}
-              <div>
-                <p className="text-sm text-gray-600 mb-1">
-                  <span className="font-semibold">Duration & Rating</span>
-                </p>
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-2 sm:text-right">
+                <div className="flex flex-col gap-2 items-end">
                   {post.duration_minutes && (
-                    <span className="text-lg font-semibold text-gray-900">
+                    <p className="text-gray-600">
+                      <span className="font-medium text-gray-900">
+                        Duration:
+                      </span>{" "}
                       {post.duration_minutes} min
-                    </span>
+                    </p>
                   )}
                   {post.rating && (
-                    <div className="flex gap-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <span
-                          key={i}
-                          className={`text-yellow-400 text-2xl ${
-                            i < post.rating! ? "" : "opacity-30"
-                          }`}
-                        >
-                          ★
-                        </span>
-                      ))}
-                    </div>
+                    <p className="text-gray-600">
+                      <span className="font-medium text-gray-900">Rating:</span>{" "}
+                      <span className="ml-2 text-yellow-600">
+                        {Array(Math.floor(post.rating)).fill("★").join("")}
+                        {post.rating % 1 !== 0 ? "½" : ""}
+                        {Array(5 - Math.ceil(post.rating))
+                          .fill("☆")
+                          .join("")}
+                      </span>
+                    </p>
                   )}
                 </div>
               </div>
             </div>
-          </div>
+          </header>
 
-          {/* Main Topic */}
-          <section className="mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">📌 Overview</h2>
-            <p className="text-lg text-gray-700 leading-relaxed">
+          {thumbnailUrl && (
+            <div className="mb-12 sm:mb-16 -mx-4 sm:mx-0">
+              <img
+                src={thumbnailUrl}
+                alt={post.title}
+                className="w-full h-auto max-h-96 object-cover rounded-lg shadow-md"
+                loading="lazy"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            </div>
+          )}
+
+          {/* Main Topic / Overview */}
+          <section className="mb-12 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl font-serif font-bold text-gray-900 mb-4">
+              Overview
+            </h2>
+            <p className="text-lg text-gray-700 leading-8 font-light">
               {post.summary.main_topic}
             </p>
           </section>
 
-          {/* Content */}
-          <section className="mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">📖 Full Content</h2>
-            <div className="prose prose-lg max-w-none">
-              <p className="text-gray-700 leading-8 whitespace-pre-wrap">
-                {post.summary.content}
-              </p>
+          {/* Full Content with Parsed Sections */}
+          <section className="mb-12 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl font-serif font-bold text-gray-900 mb-6">
+              Full Content
+            </h2>
+            <div className="space-y-6">
+              {contentSections.length > 0 ? (
+                contentSections.map((section, i) => {
+                  if (section.type === "heading") {
+                    return (
+                      <h3
+                        key={i}
+                        className="text-xl sm:text-2xl font-serif font-bold text-gray-900 mt-8 mb-4 pt-4"
+                      >
+                        {section.content}
+                      </h3>
+                    );
+                  } else if (section.type === "quote") {
+                    return (
+                      <blockquote
+                        key={i}
+                        className="my-8 pl-6 border-l-4 border-gray-300 italic"
+                      >
+                        <p className="text-lg text-gray-700 font-light leading-8 mb-3">
+                          "{section.quoteText}"
+                        </p>
+                        <p className="text-sm font-medium text-gray-600">
+                          — {section.author}
+                        </p>
+                      </blockquote>
+                    );
+                  } else {
+                    return (
+                      <p
+                        key={i}
+                        className="text-gray-700 leading-8 font-light whitespace-pre-wrap"
+                      >
+                        {section.content}
+                      </p>
+                    );
+                  }
+                })
+              ) : (
+                <p className="text-gray-700 leading-8 font-light whitespace-pre-wrap">
+                  {post.summary.content}
+                </p>
+              )}
             </div>
           </section>
 
           {/* Key Takeaways */}
-          {post.summary.key_takeaways && post.summary.key_takeaways.length > 0 && (
-            <section className="mb-12">
-              <h2 className="text-3xl font-bold text-gray-900 mb-6">
-                ✨ Key Takeaways
-              </h2>
-              <ul className="space-y-4">
-                {post.summary.key_takeaways.map((takeaway, i) => (
-                  <li key={i} className="flex gap-4">
-                    <span className="text-green-500 font-bold text-2xl flex-shrink-0 mt-1">
-                      ✓
-                    </span>
-                    <p className="text-gray-700 text-lg leading-relaxed">
-                      {takeaway}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {/* Actionable Advice */}
-          {post.summary.actionable_advice &&
-            post.summary.actionable_advice.length > 0 && (
-              <section className="mb-12">
-                <h2 className="text-3xl font-bold text-gray-900 mb-6">
-                  💡 Actionable Advice
+          {post.summary.key_takeaways &&
+            post.summary.key_takeaways.length > 0 && (
+              <section className="mb-12 sm:mb-16">
+                <h2 className="text-2xl sm:text-3xl font-serif font-bold text-gray-900 mb-6">
+                  Key Takeaways
                 </h2>
                 <ul className="space-y-4">
-                  {post.summary.actionable_advice.map((advice, i) => (
-                    <li key={i} className="flex gap-4">
-                      <span className="text-orange-500 font-bold text-2xl flex-shrink-0 mt-1">
-                        💡
+                  {post.summary.key_takeaways.map((takeaway, i) => (
+                    <li
+                      key={i}
+                      className="flex gap-4 text-gray-700 leading-7 font-light"
+                    >
+                      <span className="text-gray-400 font-serif text-xl flex-shrink-0 mt-1">
+                        •
                       </span>
-                      <p className="text-gray-700 text-lg leading-relaxed">
-                        {advice}
-                      </p>
+                      <span>{takeaway}</span>
                     </li>
                   ))}
                 </ul>
               </section>
             )}
 
-          {/* Resources */}
+          {/* Actionable Advice */}
+          {post.summary.actionable_advice &&
+            post.summary.actionable_advice.length > 0 && (
+              <section className="mb-12 sm:mb-16">
+                <h2 className="text-2xl sm:text-3xl font-serif font-bold text-gray-900 mb-6">
+                  Actionable Advice
+                </h2>
+                <ul className="space-y-4">
+                  {post.summary.actionable_advice.map((advice, i) => (
+                    <li
+                      key={i}
+                      className="flex gap-4 text-gray-700 leading-7 font-light"
+                    >
+                      <span className="text-gray-400 font-serif text-xl flex-shrink-0 mt-1">
+                        •
+                      </span>
+                      <span>{advice}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+          {/* Resources Mentioned */}
           {post.summary.resources_mentioned &&
             post.summary.resources_mentioned.length > 0 && (
-              <section className="mb-12">
-                <h2 className="text-3xl font-bold text-gray-900 mb-6">
-                  📚 Resources Mentioned
+              <section className="mb-12 sm:mb-16">
+                <h2 className="text-2xl sm:text-3xl font-serif font-bold text-gray-900 mb-6">
+                  Resources Mentioned
                 </h2>
                 <ul className="space-y-2">
                   {post.summary.resources_mentioned.map((resource, i) => (
-                    <li key={i} className="text-gray-700 text-lg">
-                      • {resource}
+                    <li
+                      key={i}
+                      className="text-gray-700 leading-7 font-light flex gap-3"
+                    >
+                      <span className="text-gray-400">−</span>
+                      <span>{resource}</span>
                     </li>
                   ))}
                 </ul>
@@ -242,30 +385,34 @@ export const DetailPage: React.FC = () => {
             )}
 
           {/* Tags */}
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Tags</h2>
-            <div className="flex flex-wrap gap-2">
-              {post.tags?.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 text-sm font-semibold rounded-full"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </section>
+          {post.tags && post.tags.length > 0 && (
+            <section className="mb-12 sm:mb-16">
+              <h2 className="text-lg font-serif font-bold text-gray-900 mb-4">
+                Tags
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {post.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-block px-3 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
 
-          {/* YouTube Link */}
+          {/* Source Link */}
           {post.source_link && (
-            <section className="pt-8 border-t border-gray-200 mb-8">
+            <section className="mb-12 sm:mb-16 pt-8 border-t border-gray-200">
               <a
                 href={post.source_link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-lg hover:from-red-700 hover:to-red-800 transition-all shadow-lg"
+                className="inline-block px-6 py-3 text-sm font-medium text-white bg-gray-900 rounded hover:bg-gray-800 transition-colors"
               >
-                ▶️ Listen on YouTube
+                Listen on Source
               </a>
             </section>
           )}
@@ -275,17 +422,17 @@ export const DetailPage: React.FC = () => {
             {!showDeleteConfirm ? (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="px-6 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition"
+                className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
               >
-                🗑️ Delete Article
+                Delete Article
               </button>
             ) : (
-              <div className="space-y-4">
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="font-semibold text-red-800 mb-2">
-                    ⚠️ Are you sure you want to delete this article?
+              <div className="space-y-4 p-4 bg-red-50 border border-red-200 rounded">
+                <div>
+                  <p className="font-medium text-red-900 mb-2">
+                    Are you sure you want to delete this article?
                   </p>
-                  <p className="text-red-700 text-sm">
+                  <p className="text-sm text-red-700">
                     This action cannot be undone.
                   </p>
                 </div>
@@ -293,14 +440,14 @@ export const DetailPage: React.FC = () => {
                   <button
                     onClick={handleDelete}
                     disabled={deleting}
-                    className="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50 transition"
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50 transition-colors"
                   >
-                    {deleting ? "Deleting..." : "Confirm Delete"}
+                    {deleting ? "Deleting..." : "Delete"}
                   </button>
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
                     disabled={deleting}
-                    className="px-6 py-2 bg-gray-400 text-white font-semibold rounded-lg hover:bg-gray-500 disabled:opacity-50 transition"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 transition-colors"
                   >
                     Cancel
                   </button>

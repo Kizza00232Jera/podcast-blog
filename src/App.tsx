@@ -7,6 +7,7 @@ import { UploadPage } from "./pages/UploadPage";
 import { DetailPage } from "./pages/DetailPage";
 import { Layout } from "./components/Layout/Layout";
 
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
 

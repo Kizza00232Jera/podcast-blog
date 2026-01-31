@@ -25,73 +25,136 @@ interface PodcastPost {
   created_at?: string;
 }
 
-interface ImportedPodcast {
-  title: string;
-  podcast_name: string;
-  creator: string;
-  youtubelink: string;
-  estimateddurationminutes: number;
-  estimatedreadingtimeminutes: number;
-  summary: Summary;
-}
+const extractYoutubeInfo = async (url: string) => {
+  try {
+    const response = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+    );
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch (error) {
+    console.error('Could not fetch YouTube info:', error);
+  }
+  return null;
+};
+
 
 export const UploadPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [youtubeUrl, setYoutubeUrl] = useState("");
   const [formData, setFormData] = useState<PodcastPost | null>(null);
-  const [importedData, setImportedData] = useState<ImportedPodcast | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [editingArrays, setEditingArrays] = useState({
     tags: [] as string[],
     key_takeaways: [] as string[],
     actionable_advice: [] as string[],
+    resources_mentioned: [] as string[],
   });
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    setError(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Generate from YouTube using Perplexity API
+const handleGenerate = async () => {
+  if (!youtubeUrl.trim()) {
+    setError("Please enter a YouTube URL");
+    return;
+  }
 
-    try {
-      const text = await file.text();
-      const parsed: ImportedPodcast = JSON.parse(text);
+  const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
+  if (!youtubeRegex.test(youtubeUrl)) {
+    setError("Please enter a valid YouTube URL");
+    return;
+  }
 
-      if (
-        !parsed.title ||
-        !parsed.podcast_name ||
-        !parsed.creator ||
-        !parsed.summary
-      ) {
-        setError("Invalid JSON format. Missing required fields.");
-        return;
-      }
+  setIsGenerating(true);
+  setError(null);
+  setFormData(null);
 
-      setImportedData(parsed);
-      setFormData({
-        title: parsed.title,
-        podcast_name: parsed.podcast_name,
-        creator: parsed.creator,
-        source_link: parsed.youtubelink,
-        tags: [],
-        summary: parsed.summary,
-        duration_minutes: parsed.estimateddurationminutes,
-        rating: undefined,
-        user_id: user?.id,
-        created_at: new Date().toISOString(),
-      });
+  try {
+    console.log("🚀 Calling Edge Function with URL:", youtubeUrl);
 
-      setEditingArrays({
-        tags: [],
-        key_takeaways: parsed.summary.key_takeaways || [],
-        actionable_advice: parsed.summary.actionable_advice || [],
-      });
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to parse JSON file"
-      );
+    // NEW: Get YouTube video info
+    const videoInfo = await extractYoutubeInfo(youtubeUrl);
+    console.log("📺 Video info:", videoInfo);
+
+    // NEW: Build the request body with metadata
+    const requestBody: any = { 
+      youtubeUrl,
+      videoTitle: videoInfo?.title || "",
+      videoAuthor: videoInfo?.author_name || "",
+    };
+
+    // NEW: Add detailed metadata if available
+    if (videoInfo) {
+      requestBody.videoMetadata = `
+Title: ${videoInfo.title}
+Author: ${videoInfo.author_name}
+      `.trim();
     }
-  };
+
+    // UPDATED: Send the request with metadata
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-podcast`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify(requestBody),
+      }
+    );
+
+    console.log("📦 Response status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Error response:", errorText);
+      throw new Error(`Function returned ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log("📦 Response data:", data);
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    // Map API response to your internal format
+    setFormData({
+      title: data.title,
+      podcast_name: data.podcast_name,
+      creator: data.creator,
+      source_link: data.youtubelink,
+      tags: [],
+      summary: data.summary,
+      duration_minutes: data.estimateddurationminutes,
+      rating: undefined,
+      user_id: user?.id,
+      created_at: new Date().toISOString(),
+    });
+
+    setEditingArrays({
+      tags: [],
+      key_takeaways: data.summary.key_takeaways || [],
+      actionable_advice: data.summary.actionable_advice || [],
+      resources_mentioned: data.summary.resources_mentioned || [],
+    });
+  } catch (err) {
+    console.error("Generation error:", err);
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Something went wrong. Please try again."
+    );
+  } finally {
+    setIsGenerating(false);
+  }
+};
+
+
 
   const handleFormChange = (field: string, value: any) => {
     if (!formData) return;
@@ -104,7 +167,7 @@ export const UploadPage: React.FC = () => {
   const handleArrayChange = (
     arrayName: keyof typeof editingArrays,
     index: number,
-    value: string
+    value: string,
   ) => {
     const newArray = [...editingArrays[arrayName]];
     newArray[index] = value;
@@ -123,7 +186,7 @@ export const UploadPage: React.FC = () => {
 
   const handleRemoveArrayItem = (
     arrayName: keyof typeof editingArrays,
-    index: number
+    index: number,
   ) => {
     setEditingArrays({
       ...editingArrays,
@@ -133,13 +196,15 @@ export const UploadPage: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!formData) return;
-    setIsAnalyzing(true);
+    setIsSaving(true);
     setError(null);
 
     try {
       // Extract YouTube thumbnail
       const getThumbnail = (url: string) => {
-        const videoId = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/)?.[1];
+        const videoId = url.match(
+          /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/,
+        )?.[1];
         return videoId
           ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
           : null;
@@ -158,12 +223,14 @@ export const UploadPage: React.FC = () => {
           main_topic: formData.summary.main_topic,
           content: formData.summary.content,
           key_takeaways: editingArrays.key_takeaways.filter((item) =>
-            item.trim()
+            item.trim(),
           ),
           actionable_advice: editingArrays.actionable_advice.filter((item) =>
-            item.trim()
+            item.trim(),
           ),
-          resources_mentioned: formData.summary.resources_mentioned || [],
+          resources_mentioned: editingArrays.resources_mentioned.filter(
+            (item) => item.trim(),
+          ),
         },
         user_id: user?.id,
       };
@@ -178,7 +245,7 @@ export const UploadPage: React.FC = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save podcast");
     } finally {
-      setIsAnalyzing(false);
+      setIsSaving(false);
     }
   };
 
@@ -187,7 +254,7 @@ export const UploadPage: React.FC = () => {
       <main className="max-w-4xl mx-auto px-4 py-12">
         <div className="bg-white/70 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/50">
           <h2 className="text-3xl font-bold text-gray-900 mb-4 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-            📤 Upload Podcast
+            🎥 Generate Podcast from YouTube
           </h2>
 
           {error && (
@@ -198,36 +265,60 @@ export const UploadPage: React.FC = () => {
 
           {!formData ? (
             <div className="space-y-6">
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-500 transition">
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  id="json-upload"
-                />
-                <label
-                  htmlFor="json-upload"
-                  className="cursor-pointer flex flex-col items-center gap-4"
-                >
-                  <div className="text-4xl">📁</div>
-                  <div>
-                    <p className="text-lg font-semibold text-gray-900 mb-2">
-                      Drop JSON file here or click
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Upload the podcast_summary.json file
-                    </p>
-                  </div>
+              {/* YouTube URL Input */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  YouTube URL
                 </label>
+                <input
+                  type="url"
+                  value={youtubeUrl}
+                  onChange={(e) => setYoutubeUrl(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && !isGenerating && handleGenerate()
+                  }
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-lg"
+                  disabled={isGenerating}
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  ⏱️ AI generation takes 45-90 seconds. Please be patient!
+                </p>
               </div>
+
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating || !youtubeUrl.trim()}
+                className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 transition-all text-lg"
+              >
+                {isGenerating ? "🤖 Generating..." : "✨ Generate Podcast"}
+              </button>
+
+              {/* Loading State */}
+              {isGenerating && (
+                <div className="flex flex-col items-center justify-center py-12 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
+                  <p className="text-gray-700 font-semibold text-lg">
+                    Analyzing podcast with AI...
+                  </p>
+                  <p className="text-gray-600 text-sm mt-2">
+                    Extracting quotes, creating sections, generating insights...
+                  </p>
+                  <p className="text-gray-500 text-xs mt-1">
+                    This usually takes 45-90 seconds
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-8">
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl border border-blue-200">
+              <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-xl border border-green-200">
                 <p className="text-sm text-gray-600">
-                  <span className="font-semibold">Loaded:</span>{" "}
-                  {importedData?.title}
+                  <span className="font-semibold">✅ Generated:</span>{" "}
+                  {formData.title}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Review and edit the content below before saving
                 </p>
               </div>
 
@@ -303,7 +394,7 @@ export const UploadPage: React.FC = () => {
                       onChange={(e) =>
                         handleFormChange(
                           "duration_minutes",
-                          parseInt(e.target.value)
+                          parseInt(e.target.value),
                         )
                       }
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -354,7 +445,7 @@ export const UploadPage: React.FC = () => {
               {/* Content */}
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Content
+                  Content (Markdown with ## sections and quotes)
                 </label>
                 <textarea
                   value={formData.summary.content}
@@ -364,9 +455,15 @@ export const UploadPage: React.FC = () => {
                       content: e.target.value,
                     })
                   }
-                  rows={8}
+                  rows={12}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-mono text-sm"
+                  placeholder={
+                    '## Section Title\n\nContent here...\n\n"Quote here." --- Speaker Name'
+                  }
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.summary.content.length} characters
+                </p>
               </div>
 
               {/* Tags */}
@@ -414,7 +511,11 @@ export const UploadPage: React.FC = () => {
                       <textarea
                         value={item}
                         onChange={(e) =>
-                          handleArrayChange("key_takeaways", idx, e.target.value)
+                          handleArrayChange(
+                            "key_takeaways",
+                            idx,
+                            e.target.value,
+                          )
                         }
                         rows={2}
                         className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -453,7 +554,7 @@ export const UploadPage: React.FC = () => {
                           handleArrayChange(
                             "actionable_advice",
                             idx,
-                            e.target.value
+                            e.target.value,
                           )
                         }
                         rows={2}
@@ -479,23 +580,64 @@ export const UploadPage: React.FC = () => {
                 </button>
               </div>
 
+              {/* Resources Mentioned */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-3">
+                  Resources Mentioned
+                </label>
+                <div className="space-y-2 mb-3">
+                  {editingArrays.resources_mentioned.map((item, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={item}
+                        onChange={(e) =>
+                          handleArrayChange(
+                            "resources_mentioned",
+                            idx,
+                            e.target.value,
+                          )
+                        }
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                        placeholder="Resource Name -- Description"
+                      />
+                      <button
+                        onClick={() =>
+                          handleRemoveArrayItem("resources_mentioned", idx)
+                        }
+                        className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => handleAddArrayItem("resources_mentioned")}
+                  className="px-4 py-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition"
+                >
+                  + Add Resource
+                </button>
+              </div>
+
               {/* Submit Buttons */}
               <div className="flex gap-4 pt-6 border-t border-gray-200">
                 <button
                   onClick={handleSubmit}
-                  disabled={isAnalyzing}
+                  disabled={isSaving}
                   className="flex-1 py-3 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 transition-all"
                 >
-                  {isAnalyzing ? "Saving..." : "Save Podcast"}
+                  {isSaving ? "Saving..." : "💾 Save Podcast"}
                 </button>
                 <button
                   onClick={() => {
                     setFormData(null);
-                    setImportedData(null);
+                    setYoutubeUrl("");
                     setEditingArrays({
                       tags: [],
                       key_takeaways: [],
                       actionable_advice: [],
+                      resources_mentioned: [],
                     });
                   }}
                   className="flex-1 py-3 px-6 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition-all"

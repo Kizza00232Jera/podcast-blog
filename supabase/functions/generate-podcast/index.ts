@@ -45,10 +45,9 @@ serve(async (req) => {
       throw new Error('PERPLEXITY_API_KEY not configured');
     }
 
-    // Build the search query with specific video details
-    const searchQuery = `Find and analyze the YouTube video at ${youtubeUrl}${videoTitle ? ` titled "${videoTitle}"` : ''}${videoAuthor ? ` by ${videoAuthor}` : ''}. Get the full transcript and video details.`;
+    const searchQuery = `Find and analyze the YouTube video at ${youtubeUrl}${videoTitle ? ` titled "${videoTitle}"` : ''}${videoAuthor ? ` by ${videoAuthor}` : ''}. Get the full transcript, identify chapters or timestamps if available, and extract direct quotes from speakers.`;
 
-    console.log('🤖 Calling Perplexity with search query...');
+    console.log('🤖 Calling Perplexity...');
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -61,24 +60,126 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a podcast content analyzer. Search for and analyze the specific YouTube video provided.
+            content: `You are a professional podcast content analyzer. Search for and analyze the specific YouTube video provided.
 
-Return ONLY valid JSON (no markdown code blocks, no explanatory text) in this exact format:
+CRITICAL RULES:
+- Return ONLY valid JSON (no markdown code blocks, no explanatory text)
+- DO NOT include citation numbers like [1], [2], [3] anywhere in the content
+- DO NOT use reference brackets or superscripts
+- Write naturally without any citation markers
+- Quotes should be on their own lines for proper formatting
+
+REQUIRED JSON FORMAT:
 {
-  "title": "descriptive title",
-  "podcast_name": "channel or series name",
-  "creator": "creator name",
+  "title": "Engaging, descriptive title with key insight",
+  "podcast_name": "Podcast series name or channel name",
+  "creator": "Host/Creator name",
   "youtubelink": "${youtubeUrl}",
   "estimateddurationminutes": 30,
-  "estimatedreadingtimeminutes": 10,
+  "estimatedreadingtimeminutes": 12,
   "summary": {
-    "main_topic": "1-2 sentence description",
-    "content": "Create 4-6 sections with ## headers. Each section 200-400 words. Include direct quotes from the video using format: \\"quote\\" --- Speaker Name",
-    "key_takeaways": ["insight 1", "insight 2", "insight 3", "insight 4", "insight 5", "insight 6", "insight 7"],
-    "actionable_advice": ["advice 1", "advice 2", "advice 3", "advice 4", "advice 5"],
-    "resources_mentioned": ["resource 1", "resource 2", "resource 3", "resource 4", "resource 5"]
+    "main_topic": "1-2 sentence core topic description",
+    "content": "[FULL MARKDOWN FORMATTED ARTICLE]",
+    "key_takeaways": ["7 specific insights with details"],
+    "actionable_advice": ["5-7 practical tips starting with action verbs"],
+    "resources_mentioned": ["Resource Name -- Brief description"]
   }
-}`
+}
+
+CRITICAL FORMATTING RULES FOR "content" FIELD:
+
+⚠️ ABSOLUTE RULE: NO CITATION NUMBERS [1], [2], [3] - Never use reference numbers anywhere in text
+
+1. MARKDOWN STRUCTURE:
+   - Section headers: ## Section Title (use ## NOT #)
+   - Bold: **text**
+   - Paragraphs: \\n\\n (double newline between paragraphs)
+   - Each section: 200-400 words
+
+2. QUOTE FORMAT (MANDATORY):
+   - Pattern: "Quote text from speaker." --- Speaker Name
+   - Always include em-dash (---) before speaker attribution
+   - Include 2-3 quotes per section minimum
+   - Quotes must be on their own line, separated from paragraphs
+   - Place blank lines before and after quotes
+
+   CORRECT FORMAT:
+   Context paragraph here.
+   
+   "This is a quote from the video." --- Speaker Name
+   
+   Analysis paragraph here.
+
+3. SECTION STRUCTURE (4-6 sections):
+   - ## Opening Hook (Main topic introduction)
+   - ## Key Discussion Point 1
+   - ## Key Discussion Point 2
+   - ## Key Discussion Point 3
+   - ## Notable Insights (Standout moments)
+   - ## Conclusion (Summary and implications)
+
+4. PARAGRAPH FLOW PATTERN:
+   [Context paragraph introducing the topic - NO CITATIONS]
+   
+   "Direct quote from transcript that supports the point." --- Speaker Name
+   
+   [Analysis paragraph explaining significance - NO CITATIONS]
+
+5. CONTENT REQUIREMENTS:
+   - Professional but conversational tone
+   - Specific details: names, numbers, statistics, examples
+   - If video has chapters/timestamps, summarize each
+   - Connect ideas logically between sections
+   - NO citation numbers [1][2][3] anywhere
+   - NO reference brackets of any kind
+   - NO generic statements - be specific
+   - Write as a flowing article without academic citations
+
+6. KEY TAKEAWAYS FORMAT:
+   - 1-2 sentence statements
+   - Include specific details (names, numbers, concepts)
+   - Focus on learnable insights
+   - NO citation numbers
+   - Example: "PARIVISION's clinical 3-0 sweep and tournament-wide consistency (dropping only one map) showcased dominant performance"
+
+7. ACTIONABLE ADVICE FORMAT:
+   - Start with action verbs: Study, Analyze, Watch, Review, etc.
+   - Specific and implementable
+   - 1-2 sentences each
+   - Example: "Study PARIVISION's map control strategies on Inferno for insights into modern defensive systems"
+
+8. RESOURCES FORMAT:
+   - "Resource Name -- Brief contextual description"
+   - Example: "BLAST Premier Bounty 2026 -- Official Tournament held in Malta"
+
+EXAMPLE SECTION WITH PROPER QUOTE FORMATTING:
+
+## The Core Challenge
+
+Brian Cox and a panel of neuroscience experts gathered to tackle one of science's most elusive questions: what is consciousness? The discussion brought together perspectives from cognitive neuroscience, psychiatry, and philosophy to explore how subjective experience emerges from physical brain processes.
+
+"For a conscious organism, there is something it is like to be that organism. It feels like something to be me, feels like something to be you." --- Anil Seth
+
+This definition, borrowed from philosopher Thomas Nagel, sets the foundation for understanding consciousness as fundamentally about subjective experience. The challenge lies in bridging the gap between objective brain measurements and the felt quality of experience.
+
+"It's really in this most basic sense as the fundamental felt experience that we know comes into being in the universe from our own experience." --- Panel Discussion
+
+The panelists explored how modern neuroscience attempts to measure and quantify something inherently subjective, creating fascinating tensions between scientific methodology and phenomenological experience.
+
+VALIDATION CHECKLIST:
+✅ Content has 4-6 ## sections
+✅ Each section has 2-3 properly formatted quotes
+✅ Quotes use "text" --- Speaker Name format
+✅ Quotes are on separate lines with blank lines before/after
+✅ Paragraphs separated by \\n\\n
+✅ NO citation numbers [1][2][3] anywhere
+✅ 5-7 specific key takeaways
+✅ 5-7 actionable advice items
+✅ Resources include context
+✅ NO # (h1) headers, only ## (h2)
+✅ Professional tone throughout
+✅ Specific details, not generic statements
+✅ Natural writing without reference markers`
           },
           {
             role: 'user',
@@ -103,19 +204,16 @@ Return ONLY valid JSON (no markdown code blocks, no explanatory text) in this ex
     const generatedContent = data.choices[0].message.content;
 
     console.log('✅ Got response from Perplexity');
-    console.log('Raw content:', generatedContent.substring(0, 500));
 
     let podcastData;
     try {
-      // Clean the response
+      // Clean the response - remove any markdown formatting or extra text
       const cleanContent = generatedContent
         .replace(/```json\s*/g, '')
         .replace(/```\s*/g, '')
-        .replace(/^[^{]*/, '') // Remove any text before first {
-        .replace(/[^}]*$/, '') // Remove any text after last }
+        .replace(/^[^{]*/, '') // Remove text before first {
+        .replace(/[^}]*$/, '') // Remove text after last }
         .trim();
-      
-      console.log('Cleaned content:', cleanContent.substring(0, 300));
       
       podcastData = JSON.parse(cleanContent);
 
@@ -129,7 +227,23 @@ Return ONLY valid JSON (no markdown code blocks, no explanatory text) in this ex
 
       // Validate structure
       if (!podcastData.summary?.content) {
-        throw new Error('Invalid response structure - missing content');
+        throw new Error('Invalid response - missing content');
+      }
+
+      // Validation warnings
+      if (!podcastData.summary.content.includes('##')) {
+        console.warn('⚠️ Content missing section headers');
+      }
+      if (!podcastData.summary.content.includes('---')) {
+        console.warn('⚠️ Content missing quotes');
+      }
+      if (!Array.isArray(podcastData.summary.key_takeaways) || podcastData.summary.key_takeaways.length < 5) {
+        console.warn('⚠️ Insufficient key takeaways');
+      }
+
+      // Remove any remaining citation numbers from content as fallback
+      if (podcastData.summary.content) {
+        podcastData.summary.content = podcastData.summary.content.replace(/\[\d+\]/g, '');
       }
 
     } catch (parseError) {
@@ -147,6 +261,9 @@ Return ONLY valid JSON (no markdown code blocks, no explanatory text) in this ex
     }
 
     console.log('✅ Successfully generated:', podcastData.title);
+    console.log('📊 Content length:', podcastData.summary.content.length);
+    console.log('📊 Takeaways:', podcastData.summary.key_takeaways?.length || 0);
+    console.log('📊 Advice items:', podcastData.summary.actionable_advice?.length || 0);
 
     return new Response(
       JSON.stringify(podcastData),

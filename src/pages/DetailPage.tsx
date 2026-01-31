@@ -25,7 +25,6 @@ interface PodcastPost {
   created_at: string;
 }
 
-
 // Helper function to extract YouTube thumbnail from URL
 const getYouTubeThumbnail = (youtubeUrl: string): string | null => {
   try {
@@ -76,13 +75,19 @@ const parseContent = (text: string): ContentSection[] => {
         content: trimmed.replace(/^##\s*/, "").trim(),
       });
     }
-    // Check for quotes ("Quote text" — Author Name)
+    // Check for quotes ("Quote text" --- Author Name or --- Author Name)
     else if (
-      trimmed.includes(" — ") &&
-      trimmed.startsWith('"') &&
+      (trimmed.includes(" --- ") || trimmed.includes(" — ")) &&
       trimmed.includes('"')
     ) {
-      const quoteMatch = trimmed.match(/"([^"]+)"\s*—\s*(.+)$/);
+      // Try to match quotes with --- (three dashes)
+      let quoteMatch = trimmed.match(/"([^"]+)"\s*---\s*(.+)$/);
+      
+      // If no match, try with — (em dash)
+      if (!quoteMatch) {
+        quoteMatch = trimmed.match(/"([^"]+)"\s*—\s*(.+)$/);
+      }
+      
       if (quoteMatch) {
         sections.push({
           type: "quote",
@@ -90,6 +95,7 @@ const parseContent = (text: string): ContentSection[] => {
           author: quoteMatch[2].trim(),
         });
       } else {
+        // If it looks like a quote but didn't parse, treat as paragraph
         sections.push({
           type: "paragraph",
           content: trimmed,
@@ -107,6 +113,7 @@ const parseContent = (text: string): ContentSection[] => {
 
   return sections;
 };
+
 
 export const DetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -288,12 +295,44 @@ export const DetailPage: React.FC = () => {
                     return (
                       <blockquote
                         key={i}
-                        className="my-8 pl-6 border-l-4 border-gray-300 italic"
+                        className="quote-styled"
+                        style={{
+                          background: "#f8f9fa",
+                          borderLeft: "4px solid #6b7280",
+                          padding: "20px 25px",
+                          margin: "25px 0",
+                          fontStyle: "italic",
+                          color: "#1f2937",
+                          position: "relative",
+                        }}
                       >
-                        <p className="text-lg text-gray-700 font-light leading-8 mb-3">
-                          "{section.quoteText}"
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: "10px",
+                            top: "5px",
+                            fontSize: "40px",
+                            color: "#6b7280",
+                            opacity: 0.3,
+                            fontFamily: "Georgia, serif",
+                          }}
+                        >
+                          "
+                        </div>
+                        <p
+                          className="text-lg font-light leading-8 mb-3"
+                          style={{ paddingLeft: "20px", color: "#1f2937" }}
+                        >
+                          {section.quoteText}
                         </p>
-                        <p className="text-sm font-medium text-gray-600">
+                        <p
+                          className="text-sm font-medium"
+                          style={{
+                            textAlign: "right",
+                            marginTop: "15px",
+                            color: "#6b7280",
+                          }}
+                        >
                           — {section.author}
                         </p>
                       </blockquote>

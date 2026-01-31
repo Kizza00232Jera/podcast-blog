@@ -13,6 +13,7 @@ export interface PodcastSummary {
 
 export interface PodcastEntry {
   id: string;
+  slug: string; 
   title: string;
   podcastName: string;
   creator: string;
@@ -25,4 +26,28 @@ export interface PodcastEntry {
   tags: string[];
   yourNotes?: string;
   summary: PodcastSummary;
+}
+
+export interface Summary {
+  main_topic: string;
+  content: string;
+  key_takeaways?: string[];
+  actionable_advice?: string[];
+  resources_mentioned?: string[];
+}
+
+export interface PodcastPost {
+  id: string;
+  slug: string; // ← Add once here
+  title: string;
+  podcast_name: string;
+  creator: string;
+  source_link: string;
+  tags: string[];
+  summary: Summary;
+  thumbnail_url?: string;
+  duration_minutes?: number;
+  rating?: number;
+  user_id: string;
+  created_at: string;
 }

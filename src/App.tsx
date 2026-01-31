@@ -13,7 +13,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-gray-50 to-blue-50 flex items-center justify-center">
         <p className="text-xl text-gray-600">Loading...</p>
       </div>
     );
@@ -52,7 +52,7 @@ function App() {
             }
           />
           <Route
-            path="/podcast/:id"
+            path="/podcast/:slug"
             element={
               <ProtectedRoute>
                 <DetailPage />

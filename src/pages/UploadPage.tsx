@@ -194,60 +194,71 @@ Author: ${videoInfo.author_name}
     });
   };
 
-  const handleSubmit = async () => {
-    if (!formData) return;
-    setIsSaving(true);
-    setError(null);
+ const handleSubmit = async () => {
+  if (!formData) return;
+  setIsSaving(true);
+  setError(null);
 
-    try {
-      // Extract YouTube thumbnail
-      const getThumbnail = (url: string) => {
-        const videoId = url.match(
-          /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/,
-        )?.[1];
-        return videoId
-          ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
-          : null;
-      };
+  try {
+    // Extract YouTube thumbnail
+    const getThumbnail = (url: string) => {
+      const videoId = url.match(
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/,
+      )?.[1];
+      return videoId
+        ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
+        : null;
+    };
 
-      const dataToSave = {
-        title: formData.title,
-        podcast_name: formData.podcast_name,
-        creator: formData.creator,
-        source_link: formData.source_link,
-        duration_minutes: formData.duration_minutes,
-        rating: formData.rating,
-        thumbnail_url: getThumbnail(formData.source_link),
-        tags: editingArrays.tags.filter((item) => item.trim()),
-        summary: {
-          main_topic: formData.summary.main_topic,
-          content: formData.summary.content,
-          key_takeaways: editingArrays.key_takeaways.filter((item) =>
-            item.trim(),
-          ),
-          actionable_advice: editingArrays.actionable_advice.filter((item) =>
-            item.trim(),
-          ),
-          resources_mentioned: editingArrays.resources_mentioned.filter(
-            (item) => item.trim(),
-          ),
-        },
-        user_id: user?.id,
-      };
+    // ✅ NEW: Generate slug from title
+    const generateSlug = (title: string): string => {
+      return title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')  // Replace non-alphanumeric with hyphens
+        .replace(/^-+|-+$/g, '')       // Remove leading/trailing hyphens
+        .substring(0, 100);            // Limit length to 100 chars
+    };
 
-      const { error: insertError } = await supabase
-        .from("podcast_posts")
-        .insert([dataToSave]);
+    const dataToSave = {
+      title: formData.title,
+      slug: generateSlug(formData.title),  // ✅ ADD THIS LINE
+      podcast_name: formData.podcast_name,
+      creator: formData.creator,
+      source_link: formData.source_link,
+      duration_minutes: formData.duration_minutes,
+      rating: formData.rating,
+      thumbnail_url: getThumbnail(formData.source_link),
+      tags: editingArrays.tags.filter((item) => item.trim()),
+      summary: {
+        main_topic: formData.summary.main_topic,
+        content: formData.summary.content,
+        key_takeaways: editingArrays.key_takeaways.filter((item) =>
+          item.trim(),
+        ),
+        actionable_advice: editingArrays.actionable_advice.filter((item) =>
+          item.trim(),
+        ),
+        resources_mentioned: editingArrays.resources_mentioned.filter(
+          (item) => item.trim(),
+        ),
+      },
+      user_id: user?.id,
+    };
 
-      if (insertError) throw insertError;
+    const { error: insertError } = await supabase
+      .from("podcast_posts")
+      .insert([dataToSave]);
 
-      navigate("/");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save podcast");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+    if (insertError) throw insertError;
+
+    navigate("/");
+  } catch (err) {
+    setError(err instanceof Error ? err.message : "Failed to save podcast");
+  } finally {
+    setIsSaving(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">

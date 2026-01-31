@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
+
 interface Summary {
   main_topic: string;
   content: string;
@@ -9,6 +10,7 @@ interface Summary {
   actionable_advice?: string[];
   resources_mentioned?: string[];
 }
+
 
 interface PodcastPost {
   id: string;
@@ -25,6 +27,7 @@ interface PodcastPost {
   created_at: string;
 }
 
+
 // Helper function to extract YouTube thumbnail from URL
 const getYouTubeThumbnail = (youtubeUrl: string): string | null => {
   try {
@@ -40,6 +43,7 @@ const getYouTubeThumbnail = (youtubeUrl: string): string | null => {
   return null;
 };
 
+
 // Helper function to render rating stars
 const renderStars = (rating: number): string => {
   const fullStars = Math.floor(rating);
@@ -50,6 +54,7 @@ const renderStars = (rating: number): string => {
   return stars;
 };
 
+
 // Parse content into sections (chapters, quotes, paragraphs)
 interface ContentSection {
   type: "heading" | "paragraph" | "quote";
@@ -58,15 +63,19 @@ interface ContentSection {
   author?: string;
 }
 
+
 const parseContent = (text: string): ContentSection[] => {
   if (!text) return [];
+
 
   const sections: ContentSection[] = [];
   const parts = text.split("\n\n");
 
+
   parts.forEach((part) => {
     const trimmed = part.trim();
     if (!trimmed) return;
+
 
     // Check for chapter headers (## Chapter Title)
     if (trimmed.startsWith("##")) {
@@ -111,29 +120,34 @@ const parseContent = (text: string): ContentSection[] => {
     }
   });
 
+
   return sections;
 };
 
 
+
 export const DetailPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [post, setPost] = useState<PodcastPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+
   useEffect(() => {
     fetchPost();
-  }, [id]);
+  }, [slug]);
+
 
   const fetchPost = async () => {
     try {
       const { data, error } = await supabase
         .from("podcast_posts")
         .select("*")
-        .eq("id", id as string)
+        .eq("slug", slug as string)
         .single();
+
 
       if (error) throw error;
       setPost(data);
@@ -144,13 +158,15 @@ export const DetailPage: React.FC = () => {
     }
   };
 
+
   const handleDelete = async () => {
     setDeleting(true);
     try {
       const { error } = await supabase
         .from("podcast_posts")
         .delete()
-        .eq("id", id as string);
+        .eq("slug", slug as string);
+
 
       if (error) throw error;
       navigate("/");
@@ -161,6 +177,7 @@ export const DetailPage: React.FC = () => {
     setShowDeleteConfirm(false);
   };
 
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -168,6 +185,7 @@ export const DetailPage: React.FC = () => {
       </div>
     );
   }
+
 
   if (!post) {
     return (
@@ -185,12 +203,15 @@ export const DetailPage: React.FC = () => {
     );
   }
 
+
   // Get thumbnail URL (from field or extracted from YouTube URL)
   const thumbnailUrl =
     post.thumbnail_url || getYouTubeThumbnail(post.source_link);
 
+
   // Parse content for chapters and quotes
   const contentSections = parseContent(post.summary.content);
+
 
   return (
     <div className="min-h-screen bg-white">
@@ -203,6 +224,7 @@ export const DetailPage: React.FC = () => {
           ← Back
         </button>
 
+
         {/* Article Content */}
         <article className="max-w-2xl mx-auto">
           {/* Title */}
@@ -210,6 +232,7 @@ export const DetailPage: React.FC = () => {
             <h1 className="text-4xl sm:text-5xl font-serif font-bold text-gray-900 leading-tight mb-6">
               {post.title}
             </h1>
+
 
             {/* Meta Information */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-sm text-gray-600 border-b border-gray-200 pb-6">
@@ -250,6 +273,7 @@ export const DetailPage: React.FC = () => {
             </div>
           </header>
 
+
           {thumbnailUrl && (
             <div className="mb-12 sm:mb-16 -mx-4 sm:mx-0">
               <img
@@ -264,6 +288,7 @@ export const DetailPage: React.FC = () => {
             </div>
           )}
 
+
           {/* Main Topic / Overview */}
           <section className="mb-12 sm:mb-16">
             <h2 className="text-2xl sm:text-3xl font-serif font-bold text-gray-900 mb-4">
@@ -273,6 +298,7 @@ export const DetailPage: React.FC = () => {
               {post.summary.main_topic}
             </p>
           </section>
+
 
           {/* Full Content with Parsed Sections */}
           <section className="mb-12 sm:mb-16">
@@ -356,6 +382,7 @@ export const DetailPage: React.FC = () => {
             </div>
           </section>
 
+
           {/* Key Takeaways */}
           {post.summary.key_takeaways &&
             post.summary.key_takeaways.length > 0 && (
@@ -378,6 +405,7 @@ export const DetailPage: React.FC = () => {
                 </ul>
               </section>
             )}
+
 
           {/* Actionable Advice */}
           {post.summary.actionable_advice &&
@@ -402,6 +430,7 @@ export const DetailPage: React.FC = () => {
               </section>
             )}
 
+
           {/* Resources Mentioned */}
           {post.summary.resources_mentioned &&
             post.summary.resources_mentioned.length > 0 && (
@@ -423,6 +452,7 @@ export const DetailPage: React.FC = () => {
               </section>
             )}
 
+
           {/* Tags */}
           {post.tags && post.tags.length > 0 && (
             <section className="mb-12 sm:mb-16">
@@ -442,6 +472,7 @@ export const DetailPage: React.FC = () => {
             </section>
           )}
 
+
           {/* Source Link */}
           {post.source_link && (
             <section className="mb-12 sm:mb-16 pt-8 border-t border-gray-200">
@@ -455,6 +486,7 @@ export const DetailPage: React.FC = () => {
               </a>
             </section>
           )}
+
 
           {/* Delete Section */}
           <section className="pt-8 border-t border-gray-200">

@@ -13,6 +13,7 @@ interface Summary {
 
 interface PodcastPost {
   id: string;
+  slug: string;
   title: string;
   podcast_name: string;
   creator: string;
@@ -203,7 +204,7 @@ export const HomePage: React.FC = () => {
                 {filteredPosts.map((post) => (
                   <Link
                     key={post.id}
-                    to={`/podcast/${post.id}`}
+                    to={`/podcast/${post.slug}`}
                     className="group bg-white/70 backdrop-blur-xl rounded-2xl p-6 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 border border-white/50 hover:border-blue-200"
                   >
                     <div className="flex justify-between items-start mb-3">

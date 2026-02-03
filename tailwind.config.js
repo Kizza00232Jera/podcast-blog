@@ -9,6 +9,9 @@ export default {
     fontFamily: {
       serif: ['Georgia', 'Garamond', 'serif'],
     },
+  plugins: [
+    require('@tailwindcss/line-clamp'), 
+  ]
   },
 }
 }

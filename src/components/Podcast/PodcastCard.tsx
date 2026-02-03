@@ -1,124 +1,126 @@
-import React from "react";
-import { Link } from "react-router-dom";
-import { PodcastEntry } from "../../types/podcast";
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface PodcastCardProps {
-  podcast: PodcastEntry;
+  podcast: {
+    id: string;
+    title: string;
+    podcast_name: string;
+    creator: string;
+    guest_name?: string;
+    duration_minutes?: number;
+    rating?: number;
+    summary: {
+      main_topic: string;
+      key_takeaways?: string[];
+      core_insights?: string[];
+    };
+    your_notes?: string;
+    created_at: string;
+  };
 }
 
-export const PodcastCard: React.FC<PodcastCardProps> = ({ podcast }) => {
-  const formattedDate = new Date(podcast.createdAt).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+const PodcastCard: React.FC<PodcastCardProps> = ({ podcast }) => {
+  const navigate = useNavigate();
 
-  // Use the slug from the database
-  const urlSlug = podcast.slug;
+  // Truncate title if too long
+  const truncateTitle = (title: string, maxLength = 80) => {
+    return title.length > maxLength 
+      ? title.substring(0, maxLength) + '...' 
+      : title;
+  };
+
+  // Generate star rating
+  const renderStars = (rating?: number) => {
+    return '⭐'.repeat(rating || 0);
+  };
+
+  // Format preview text from summary
+  const getPreviewText = () => {
+    if (podcast.summary.main_topic) {
+      return podcast.summary.main_topic;
+    }
+    if (podcast.summary.key_takeaways && podcast.summary.key_takeaways.length > 0) {
+      return podcast.summary.key_takeaways[0];
+    }
+    return 'No summary available';
+  };
 
   return (
-    <Link to={`/podcast/${urlSlug}`} className="block">
-      <article className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition">
-        {/* Header */}
-        <div className="mb-4">
-          <h3 className="text-xl font-bold text-gray-900 mb-2">{podcast.title}</h3>
-          <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-            <div>
-              <p>
-                <span className="font-semibold">{podcast.podcastName}</span> by{" "}
-                {podcast.creator}
-              </p>
-              {podcast.guestName && (
-                <p className="text-gray-500">Guest: {podcast.guestName}</p>
-              )}
-            </div>
-            <div className="text-right">
-              <p>{formattedDate}</p>
-              {podcast.durationMinutes && (
-                <p className="text-gray-500">{podcast.durationMinutes} min</p>
-              )}
-            </div>
-          </div>
+    <div className="group bg-white border border-gray-200 rounded-lg overflow-hidden 
+                    transition-all duration-300 hover:-translate-y-1 
+                    hover:shadow-xl cursor-pointer">
+      
+      {/* Article Image - Gradient fallback */}
+      <div className="w-full h-48 bg-gradient-to-br from-indigo-500 to-purple-600 
+                      relative overflow-hidden">
+        <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600" />
+      </div>
+
+      {/* Card Content */}
+      <div className="p-5">
+        
+        {/* Title */}
+        <h3 className="text-base font-semibold text-gray-900 mb-3 
+                       line-clamp-2 leading-snug">
+          {truncateTitle(podcast.title)}
+        </h3>
+
+        {/* Metadata */}
+        <div className="space-y-2 mb-3">
+          <p className="text-sm text-gray-600">
+            Podcast: {podcast.podcast_name}
+          </p>
+          <p className="text-sm text-gray-600">
+            Creator: {podcast.creator}
+            {podcast.guest_name && ` • Guest: ${podcast.guest_name}`}
+          </p>
+          {podcast.duration_minutes && (
+            <p className="text-sm text-gray-600">
+              ⏱️ {podcast.duration_minutes} min
+            </p>
+          )}
         </div>
 
         {/* Rating */}
         {podcast.rating && (
-          <div className="mb-4">
-            <div className="flex items-center">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <span
-                  key={i}
-                  className={`text-lg ${
-                    i < podcast.rating! ? "text-yellow-400" : "text-gray-300"
-                  }`}
-                >
-                  ★
-                </span>
-              ))}
-            </div>
+          <div className="text-yellow-400 mb-3 text-sm">
+            {renderStars(podcast.rating)}
           </div>
         )}
 
-        {/* Summary */}
-        <div className="mb-6 space-y-3">
-          {/* Key Takeaways */}
-          {podcast.summary.keyTakeaways.length > 0 && (
-            <div>
-              <h4 className="font-semibold text-gray-900 text-sm mb-2">
-                Key Takeaways
-              </h4>
-              <ul className="list-disc list-inside space-y-1">
-                {podcast.summary.keyTakeaways.slice(0, 3).map((takeaway, i) => (
-                  <li key={i} className="text-sm text-gray-700">
-                    {takeaway}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+        {/* Preview/Summary */}
+        <p className="text-sm text-gray-700 leading-relaxed mb-4 
+                      line-clamp-3">
+          {getPreviewText()}
+        </p>
 
-          {/* Main Topic */}
-          <div>
-            <h4 className="font-semibold text-gray-900 text-sm mb-1">
-              Main Topic
-            </h4>
-            <p className="text-sm text-gray-700">{podcast.summary.mainTopic}</p>
-          </div>
-
-          {/* Core Insights */}
-          {podcast.summary.coreInsights.length > 0 && (
-            <div>
-              <h4 className="font-semibold text-gray-900 text-sm mb-1">
-                Key Insights
-              </h4>
-              <p className="text-sm text-gray-700 line-clamp-3">
-                {podcast.summary.coreInsights[0]}
-              </p>
-            </div>
+        {/* Buttons */}
+        <div className="flex gap-2.5">
+          <button
+            onClick={() => navigate(`/podcast/${podcast.id}`)}
+            className="flex-1 bg-indigo-600 text-white py-2 px-3 
+                       rounded-md text-sm font-medium 
+                       hover:bg-indigo-700 transition-colors"
+          >
+            Read Full Article →
+          </button>
+          
+          {podcast.your_notes && (
+            <button
+              onClick={() => window.open(podcast.your_notes, '_blank')}
+              className="flex-1 bg-red-500 text-white py-2 px-3 
+                         rounded-md text-sm font-medium 
+                         hover:bg-red-600 transition-colors"
+            >
+              ▶️ YouTube
+            </button>
           )}
         </div>
-
-        {/* Tags */}
-        <div className="mb-4">
-          <div className="flex flex-wrap gap-2">
-            {podcast.tags.map((tag) => (
-              <span
-                key={tag}
-                className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="pt-4 border-t border-gray-200">
-          <span className="text-sm text-blue-600 hover:text-blue-800 font-semibold">
-            Read More →
-          </span>
-        </div>
-      </article>
-    </Link>
+        
+      </div>
+    </div>
   );
 };
+
+export default PodcastCard;
